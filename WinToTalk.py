@@ -151,7 +151,14 @@ async def process_message(msg):
             rate = data.get("Rate", DEFAULT_RATE)
             speaker = data.get("Speaker", "Unknown")
 
-            print(datetime.now(), "Say", speaker)
+            print(datetime.now(), "Say")
+            print("Language:", language)
+            print("Gender:", gender)
+            print("Speaker:", speaker)
+            print("Rate:", rate)
+            print("Text:", payload)
+            print("")
+            
 
             enqueue_speech(payload, language, gender, rate, DEFAULT_VOLUME, speaker)
 
