@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import websockets
 import comtypes.client
 import pythoncom
+import html
 
 
 SVS_ASYNC = 1
@@ -86,7 +87,13 @@ def tts_worker():
 
             cancel_event.clear()
 
-            voice.Speak(item.text, SVS_ASYNC)
+            try:
+                safe_text = html.escape(item.text)
+                voice.Speak(safe_text, SVS_ASYNC)
+            except Exception as e:
+                print("[TTS] Recovering from SAPI error:", e)
+                voice = comtypes.client.CreateObject("SAPI.SpVoice")
+                continue
 
             while True:
 
@@ -124,6 +131,11 @@ def enqueue_speech(text, language, gender, rate, volume, speaker):
     speech_queue.put(item)
 
     #print(f"[TTS] QUEUE PUT ({speaker}) | size={speech_queue.qsize()}")
+    
+    if speech_queue.qsize() > 100:
+        print("[TTS] queue overflow, clearing")
+        with speech_queue.mutex:
+            speech_queue.queue.clear()
 
 
 def cancel_current():
