@@ -1,176 +1,211 @@
 # -*- coding: utf-8 -*-
-"""
-WinToTalk: Windows TTS WebSocket Listener
-- Direct SAPI5 via comtypes
-- 6 built-in voices (EN/DE, neutral/female/male)
-- Per-message rate support
-- Cancel stops immediately and new speech plays
-"""
 
 import asyncio
 import json
 import sys
 import signal
-from datetime import datetime
 import threading
+import queue
+from datetime import datetime
+from dataclasses import dataclass
 
-import comtypes.client
 import websockets
-
-# ------------------------
-# Voice configuration
-# ------------------------
-EN_NEUTRAL = "Microsoft Catherine"
-EN_FEMALE  = "Microsoft Susan"
-EN_MALE    = "Microsoft Richard"
-
-DE_NEUTRAL = "Microsoft Hedda Desktop"
-DE_FEMALE  = "Microsoft Katja"
-DE_MALE    = "Microsoft Karsten"
-
-DEFAULT_RATE = 300  # default words per minute
-DEFAULT_VOLUME = 100  # default volume
-
-# ------------------------
-# TTS Engine (SAPI5)
-# ------------------------
-SpVoice = comtypes.client.CreateObject("SAPI.SpVoice")
-voice_lock = threading.Lock()
-current_speak_thread = None
-
-def rate_to_sapi(rate_wpm: int) -> int:
-    baseline = 200  # SAPI standard
-    diff = rate_wpm - baseline
-    # lineare Umrechnung, +/-10 maximal
-    sapi_rate = int(diff / 20)  # 20 WPM = 1 SAPI rate step
-    return max(-10, min(10, sapi_rate))
+import comtypes.client
+import pythoncom
 
 
-# Mapping für Logging
-VOICE_MAP = {
-    "EN_NEUTRAL": EN_NEUTRAL,
-    "EN_FEMALE": EN_FEMALE,
-    "EN_MALE": EN_MALE,
-    "DE_NEUTRAL": DE_NEUTRAL,
-    "DE_FEMALE": DE_FEMALE,
-    "DE_MALE": DE_MALE,
-}
+SVS_ASYNC = 1
+SVS_PURGE = 2
 
-def select_voice(language, gender):
-    """Select one of the 6 preconfigured voices and log clearly."""
-    if language.lower().startswith("german"):
-        if gender.lower() == "male":
-            chosen = "DE_MALE"
-        elif gender.lower() == "female":
-            chosen = "DE_FEMALE"
-        else:
-            chosen = "DE_NEUTRAL"
-    else:
-        if gender.lower() == "male":
-            chosen = "EN_MALE"
-        elif gender.lower() == "female":
-            chosen = "EN_FEMALE"
-        else:
-            chosen = "EN_NEUTRAL"
-
-    voice_name = VOICE_MAP[chosen]
-
-    for v in SpVoice.GetVoices():
-        if voice_name.lower() in v.GetDescription().lower():
-            SpVoice.Voice = v
-            print(f"[WinToTalk] Selected voice constant: {chosen} -> {voice_name}")
-            return chosen, voice_name
-
-    print(f"[WinToTalk] Warning: voice '{voice_name}' not found, using default")
-    return chosen, "Default system voice"
+DEFAULT_RATE = 300
+DEFAULT_VOLUME = 100
 
 
-def speak(text, language="English", gender="None", rate=DEFAULT_RATE, volume=DEFAULT_VOLUME):
-    """Speak text in a separate thread. Stops previous speech immediately."""
-    global current_speak_thread
-
-    def run():
-        with voice_lock:
-            SpVoice.Volume = max(0, min(100, volume))
-            SpVoice.Rate = rate_to_sapi(rate)
-            select_voice(language, gender)
-            SpVoice.Speak(text, 1)  # 1 = SVSFlagsAsync
-
-    # stop previous speech
-    cancel_speech()
-
-    current_speak_thread = threading.Thread(target=run, daemon=True)
-    current_speak_thread.start()
+@dataclass
+class SpeechItem:
+    text: str
+    language: str
+    gender: str
+    rate: int
+    volume: int
+    speaker: str
 
 
-def cancel_speech():
-    """Immediately stop current speech."""
-    with voice_lock:
-        SpVoice.Speak("", 3)  # 3 = SVSFPurgeBeforeSpeak
+speech_queue = queue.Queue()
+
+cancel_event = threading.Event()
+stop_event = threading.Event()
 
 
-# ------------------------
-# WebSocket Handling
-# ------------------------
-async def process_message(msg):
+def rate_to_sapi(rate):
+    baseline = 200
+    diff = rate - baseline
+    return max(-10, min(10, int(diff / 20)))
+
+
+def select_voice(voice, language, gender):
+
+    name = "Microsoft Susan"
+
+    if gender.lower() == "male":
+        name = "Microsoft Richard"
+
+    for v in voice.GetVoices():
+        if name.lower() in v.GetDescription().lower():
+            voice.Voice = v
+            return
+
+
+def tts_worker():
+
+    pythoncom.CoInitialize()
+
+    voice = comtypes.client.CreateObject("SAPI.SpVoice")
+
+    print("[TTS] Worker started")
+
     try:
+
+        while not stop_event.is_set():
+
+            print("[TTS] Waiting for queue item...")
+
+            item = speech_queue.get()
+
+            if item is None:
+                break
+
+            print(f"[TTS] QUEUE GET ({item.speaker}) | size={speech_queue.qsize()}")
+
+            voice.Volume = item.volume
+            voice.Rate = rate_to_sapi(item.rate)
+
+            select_voice(voice, item.language, item.gender)
+
+            print(f"[TTS] SPEAK START ({item.speaker})")
+
+            cancel_event.clear()
+
+            voice.Speak(item.text, SVS_ASYNC)
+
+            while True:
+
+                # wait 100 ms for completion
+                finished = voice.WaitUntilDone(100)
+
+                if finished:
+                    print("[TTS] SPEAK FINISHED")
+                    break
+
+                if cancel_event.is_set():
+
+                    print("[TTS] CANCEL EXECUTED")
+
+                    voice.Speak("", SVS_PURGE)
+
+                    cancel_event.clear()
+                    break
+
+            speech_queue.task_done()
+
+    finally:
+
+        pythoncom.CoUninitialize()
+
+
+worker_thread = threading.Thread(target=tts_worker, daemon=True)
+worker_thread.start()
+
+
+def enqueue_speech(text, language, gender, rate, volume, speaker):
+
+    item = SpeechItem(text, language, gender, rate, volume, speaker)
+
+    speech_queue.put(item)
+
+    print(f"[TTS] QUEUE PUT ({speaker}) | size={speech_queue.qsize()}")
+
+
+def cancel_current():
+
+    print("[TTS] CANCEL REQUESTED")
+
+    cancel_event.set()
+
+
+async def process_message(msg):
+
+    try:
+
         data = json.loads(msg)
+
         msg_type = data.get("Type", "").lower()
 
         if msg_type == "say":
+
             payload = data.get("Payload", "")
             language = data.get("Language", "English")
-            voice_info = data.get("Voice", {})
-            gender = voice_info.get("Name", "None")
+
+            gender = data.get("Voice", {}).get("Name", "None")
+
             rate = data.get("Rate", DEFAULT_RATE)
             speaker = data.get("Speaker", "Unknown")
 
-            print(datetime.now(), "Say")
-            print("Language:", language)
-            print("Gender:", gender)
-            print("Speaker:", speaker)
-            print("Rate:", rate)
-            print("Text:", payload)
-            print("")
+            print(datetime.now(), "Say", speaker)
 
-            speak(payload, language, gender, rate)
+            enqueue_speech(payload, language, gender, rate, DEFAULT_VOLUME, speaker)
 
         elif msg_type == "cancel":
-            print(datetime.now(), "Cancel")
-            cancel_speech()
+
+            cancel_current()
 
     except Exception as e:
-        print(f"[WinToTalk] Message error: {e}")
+
+        print("Message error:", e)
 
 
 async def websocket_loop(uri):
+
     while True:
+
         try:
-            async with websockets.connect(uri, ping_interval=10, ping_timeout=5) as ws:
-                print("[WinToTalk] Connected to WebSocket")
+
+            async with websockets.connect(uri) as ws:
+
+                print("[WinToTalk] Connected")
+
                 while True:
+
                     msg = await ws.recv()
+
                     await process_message(msg)
+
         except Exception as e:
-            print(f"[WinToTalk] WebSocket error: {e}")
+
+            print("WebSocket error:", e)
+
             await asyncio.sleep(1)
 
 
-# ------------------------
-# Main
-# ------------------------
 def shutdown(*args):
-    print("[WinToTalk] Shutting down...")
-    cancel_speech()
+
+    print("[WinToTalk] Shutdown")
+
+    stop_event.set()
+    cancel_event.set()
+
+    speech_queue.put(None)
+
+    worker_thread.join(timeout=2)
+
     sys.exit(0)
 
 
 if __name__ == "__main__":
+
     URI = "ws://localhost:3000/Messages"
 
-    # Handle Ctrl-C
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
     asyncio.run(websocket_loop(URI))
-
