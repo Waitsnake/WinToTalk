@@ -62,27 +62,27 @@ def tts_worker():
 
     voice = comtypes.client.CreateObject("SAPI.SpVoice")
 
-    print("[TTS] Worker started")
+    #print("[TTS] Worker started")
 
     try:
 
         while not stop_event.is_set():
 
-            print("[TTS] Waiting for queue item...")
+            #print("[TTS] Waiting for queue item...")
 
             item = speech_queue.get()
 
             if item is None:
                 break
 
-            print(f"[TTS] QUEUE GET ({item.speaker}) | size={speech_queue.qsize()}")
+            #print(f"[TTS] QUEUE GET ({item.speaker}) | size={speech_queue.qsize()}")
 
             voice.Volume = item.volume
             voice.Rate = rate_to_sapi(item.rate)
 
             select_voice(voice, item.language, item.gender)
 
-            print(f"[TTS] SPEAK START ({item.speaker})")
+            #print(f"[TTS] SPEAK START ({item.speaker})")
 
             cancel_event.clear()
 
@@ -94,12 +94,12 @@ def tts_worker():
                 finished = voice.WaitUntilDone(100)
 
                 if finished:
-                    print("[TTS] SPEAK FINISHED")
+                    #print("[TTS] SPEAK FINISHED")
                     break
 
                 if cancel_event.is_set():
 
-                    print("[TTS] CANCEL EXECUTED")
+                    #print("[TTS] CANCEL EXECUTED")
 
                     voice.Speak("", SVS_PURGE)
 
@@ -123,12 +123,12 @@ def enqueue_speech(text, language, gender, rate, volume, speaker):
 
     speech_queue.put(item)
 
-    print(f"[TTS] QUEUE PUT ({speaker}) | size={speech_queue.qsize()}")
+    #print(f"[TTS] QUEUE PUT ({speaker}) | size={speech_queue.qsize()}")
 
 
 def cancel_current():
 
-    print("[TTS] CANCEL REQUESTED")
+    #print("[TTS] CANCEL REQUESTED")
 
     cancel_event.set()
 
@@ -156,6 +156,8 @@ async def process_message(msg):
             enqueue_speech(payload, language, gender, rate, DEFAULT_VOLUME, speaker)
 
         elif msg_type == "cancel":
+            
+            print(datetime.now(), "Cancel")
 
             cancel_current()
 
