@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import websockets
 import comtypes.client
 import pythoncom
-import html
+import re
 
 
 SVS_ASYNC = 1
@@ -37,6 +37,14 @@ speech_queue = queue.Queue()
 cancel_event = threading.Event()
 stop_event = threading.Event()
 
+def sanitize_for_sapi(text: str) -> str:
+    # remove XML brackets (SAPI interprets as SSML)
+    text = text.replace("<", "").replace(">", "")
+
+    # remove control characters
+    text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+
+    return text
 
 def rate_to_sapi(rate):
     baseline = 200
@@ -88,7 +96,7 @@ def tts_worker():
             cancel_event.clear()
 
             try:
-                safe_text = html.escape(item.text)
+                safe_text = sanitize_for_sapi(item.text)
                 voice.Speak(safe_text, SVS_ASYNC)
             except Exception as e:
                 print("[TTS] Recovering from SAPI error:", e)
