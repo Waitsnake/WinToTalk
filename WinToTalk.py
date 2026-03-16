@@ -65,14 +65,19 @@ def detect_chat_language(text, default_language):
         print("[WinToTalk] (shortcut) Detect Language = German")
         return "German"
 
+    EMOTE_PATTERN = r"^[:;=8xX][-^]?[)DPOo3]+$"
+    if re.match(EMOTE_PATTERN, text.strip()):
+        print("[WinToTalk] (emote detected)")
+        return default_language
+
     # -------------------------
     # Wörter extrahieren
     # -------------------------
 
     words = re.findall(r"[A-Za-zÄÖÜäöüß]+", text.lower())
 
-    if not words:
-        print("[WinToTalk] (default) Detect Language =", default_language)
+    if len(words) == 0:
+        print("[WinToTalk] (no words) using default language")
         return default_language
 
     # -------------------------
