@@ -14,6 +14,7 @@ import comtypes.client
 import pythoncom
 import re
 from langdetect import detect, DetectorFactory
+from wordfreq import zipf_frequency
 
 DEFAULT_RATE = 300
 DEFAULT_VOLUME = 100
@@ -38,26 +39,68 @@ def detect_chat_language(text, default_language):
 
     text = text.strip()
 
-    # sehr zuverlässiger Deutsch-Indikator
+    # Umlaut Shortcut
     if any(c in text for c in "äöüÄÖÜß"):
-        print(f"[WinToTalk] (shortcut) Detect Language = German")
+        print("[WinToTalk] (shortcut) Detect Language = German")
         return "German"
 
+    words = re.findall(r"[A-Za-zÄÖÜäöüß]+", text.lower())
+
+    if not words:
+        print("[WinToTalk] (default) Detect Language =", default_language)
+        return default_language
+
+    # -------------------------
+    # wordfreq scoring
+    # -------------------------
+    de_score = 0
+    en_score = 0
+
+    for w in words:
+        de_score += zipf_frequency(w, "de")
+        en_score += zipf_frequency(w, "en")
+
+    word_count = len(words)
+
+    avg_diff = abs(de_score - en_score) / word_count
+    avg_score = max(de_score, en_score) / word_count
+
+    print("[WinToTalk] (wordfreq) de =", round(de_score,2))
+    print("[WinToTalk] (wordfreq) en =", round(en_score,2))
+    print("[WinToTalk] (wordfreq) avg_score =", round(avg_score,2))
+    print("[WinToTalk] (wordfreq) avg_diff =", round(avg_diff,2))
+
+    # nur entscheiden wenn confidence hoch
+    if avg_score >= 2.5 and avg_diff >= 0.6:
+
+        if de_score > en_score:
+            print("[WinToTalk] (wordfreq confident) Detect Language = German")
+            return "German"
+
+        else:
+            print("[WinToTalk] (wordfreq confident) Detect Language = English")
+            return "English"
+
+    print("[WinToTalk] (wordfreq uncertain) trying fallback")
+
+    # -------------------------
+    # fallback langdetect
+    # -------------------------
     try:
         lang = detect(text)
 
         if lang == "de":
-            print(f"[WinToTalk] (detect) Detect Language = German")
+            print("[WinToTalk] (detect fallback) German")
             return "German"
 
         if lang == "en":
-            print(f"[WinToTalk] (detect) Detect Language = English")
+            print("[WinToTalk] (detect fallback) English")
             return "English"
 
     except:
         pass
 
-    print(f"[WinToTalk] (default) Detect Language = ", default_language)
+    print("[WinToTalk] (default) Detect Language =", default_language)
     return default_language
 
 @dataclass
