@@ -13,14 +13,52 @@ import websockets
 import comtypes.client
 import pythoncom
 import re
-
-
-SVS_ASYNC = 1
-SVS_PURGE = 2
+from langdetect import detect, DetectorFactory
 
 DEFAULT_RATE = 300
 DEFAULT_VOLUME = 100
 
+# ------------------------
+# Voice configuration
+# ------------------------
+EN_NEUTRAL = "Microsoft Catherine"
+EN_FEMALE  = "Microsoft Susan"
+EN_MALE    = "Microsoft Richard"
+
+DE_NEUTRAL = "Microsoft Hedda Desktop"
+DE_FEMALE  = "Microsoft Katja"
+DE_MALE    = "Microsoft Karsten"
+
+SVS_ASYNC = 1
+SVS_PURGE = 2
+
+DetectorFactory.seed = 0
+
+def detect_chat_language(text, default_language):
+
+    text = text.strip()
+
+    # sehr zuverlässiger Deutsch-Indikator
+    if any(c in text for c in "äöüÄÖÜß"):
+        print(f"[WinToTalk] (shortcut) Detect Language = German")
+        return "German"
+
+    try:
+        lang = detect(text)
+
+        if lang == "de":
+            print(f"[WinToTalk] (detect) Detect Language = German")
+            return "German"
+
+        if lang == "en":
+            print(f"[WinToTalk] (detect) Detect Language = English")
+            return "English"
+
+    except:
+        pass
+
+    print(f"[WinToTalk] (default) Detect Language = ", default_language)
+    return default_language
 
 @dataclass
 class SpeechItem:
@@ -52,17 +90,43 @@ def rate_to_sapi(rate):
     return max(-10, min(10, int(diff / 20)))
 
 
+# Mapping für Logging
+VOICE_MAP = {
+    "EN_NEUTRAL": EN_NEUTRAL,
+    "EN_FEMALE": EN_FEMALE,
+    "EN_MALE": EN_MALE,
+    "DE_NEUTRAL": DE_NEUTRAL,
+    "DE_FEMALE": DE_FEMALE,
+    "DE_MALE": DE_MALE,
+}
+
 def select_voice(voice, language, gender):
+    """Select one of the 6 preconfigured voices and log clearly."""
+    if language.lower().startswith("german"):
+        if gender.lower() == "male":
+            chosen = "DE_MALE"
+        elif gender.lower() == "female":
+            chosen = "DE_FEMALE"
+        else:
+            chosen = "DE_NEUTRAL"
+    else:
+        if gender.lower() == "male":
+            chosen = "EN_MALE"
+        elif gender.lower() == "female":
+            chosen = "EN_FEMALE"
+        else:
+            chosen = "EN_NEUTRAL"
 
-    name = "Microsoft Susan"
-
-    if gender.lower() == "male":
-        name = "Microsoft Richard"
+    voice_name = VOICE_MAP[chosen]
 
     for v in voice.GetVoices():
-        if name.lower() in v.GetDescription().lower():
+        if voice_name.lower() in v.GetDescription().lower():
             voice.Voice = v
-            return
+            print(f"[WinToTalk] Selected voice constant: {chosen} -> {voice_name}")
+            return chosen, voice_name
+
+    print(f"[WinToTalk] Warning: voice '{voice_name}' not found, using default")
+    return chosen, "Default system voice"
 
 
 def tts_worker():
@@ -89,7 +153,8 @@ def tts_worker():
             voice.Volume = item.volume
             voice.Rate = rate_to_sapi(item.rate)
 
-            select_voice(voice, item.language, item.gender)
+            language = detect_chat_language(item.text, item.language)
+            select_voice(voice, language, item.gender)
 
             #print(f"[TTS] SPEAK START ({item.speaker})")
 
