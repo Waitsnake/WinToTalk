@@ -30,6 +30,19 @@ DE_NEUTRAL = "Microsoft Hedda Desktop"
 DE_FEMALE  = "Microsoft Katja"
 DE_MALE    = "Microsoft Karsten"
 
+ES_NEUTRAL = "Microsoft Helena Desktop"
+ES_FEMALE  = "Microsoft Helena Desktop"
+ES_MALE    = "Microsoft Helena Desktop"
+
+FR_NEUTRAL = "Microsoft Hortense Desktop"
+FR_FEMALE  = "Microsoft Hortense Desktop"
+FR_MALE    = "Microsoft Hortense Desktop"
+
+JP_NEUTRAL = "Microsoft Haruka Desktop"
+JP_FEMALE  = "Microsoft Haruka Desktop"
+JP_MALE    = "Microsoft Haruka Desktop"
+
+
 SVS_ASYNC = 1
 SVS_PURGE = 2
 
@@ -39,10 +52,22 @@ def detect_chat_language(text, default_language):
 
     text = text.strip()
 
-    # Umlaut Shortcut
+    # -------------------------
+    # German Umlaut Shortcut
+    # -------------------------
+    
+    # Japanese shortcut
+    if re.search(r"[ぁ-んァ-ン一-龯]", text):
+        print("[WinToTalk] (shortcut) Detect Language = Japanese")
+        return "Japanese"
+
     if any(c in text for c in "äöüÄÖÜß"):
         print("[WinToTalk] (shortcut) Detect Language = German")
         return "German"
+
+    # -------------------------
+    # Wörter extrahieren
+    # -------------------------
 
     words = re.findall(r"[A-Za-zÄÖÜäöüß]+", text.lower())
 
@@ -53,39 +78,58 @@ def detect_chat_language(text, default_language):
     # -------------------------
     # wordfreq scoring
     # -------------------------
+
     de_score = 0
     en_score = 0
+    fr_score = 0
+    es_score = 0
 
     for w in words:
         de_score += zipf_frequency(w, "de")
         en_score += zipf_frequency(w, "en")
+        fr_score += zipf_frequency(w, "fr")
+        es_score += zipf_frequency(w, "es")
 
     word_count = len(words)
 
-    avg_diff = abs(de_score - en_score) / word_count
-    avg_score = max(de_score, en_score) / word_count
+    scores = {
+        "German": de_score,
+        "English": en_score,
+        "French": fr_score,
+        "Spanish": es_score
+    }
 
-    print("[WinToTalk] (wordfreq) de =", round(de_score,2))
-    print("[WinToTalk] (wordfreq) en =", round(en_score,2))
-    print("[WinToTalk] (wordfreq) avg_score =", round(avg_score,2))
-    print("[WinToTalk] (wordfreq) avg_diff =", round(avg_diff,2))
+    best_language = max(scores, key=scores.get)
+    best_score = scores[best_language]
 
-    # nur entscheiden wenn confidence hoch
+    second_score = sorted(scores.values(), reverse=True)[1]
+
+    avg_score = best_score / word_count
+    avg_diff = (best_score - second_score) / word_count
+
+    print("[WinToTalk] (wordfreq scores)")
+    print("   de =", round(de_score,2))
+    print("   en =", round(en_score,2))
+    print("   fr =", round(fr_score,2))
+    print("   es =", round(es_score,2))
+
+    print("[WinToTalk] (wordfreq avg_score =", round(avg_score,2), ")")
+    print("[WinToTalk] (wordfreq avg_diff =", round(avg_diff,2), ")")
+
+    # -------------------------
+    # Confidence Check
+    # -------------------------
+
     if avg_score >= 2.5 and avg_diff >= 0.6:
-
-        if de_score > en_score:
-            print("[WinToTalk] (wordfreq confident) Detect Language = German")
-            return "German"
-
-        else:
-            print("[WinToTalk] (wordfreq confident) Detect Language = English")
-            return "English"
+        print(f"[WinToTalk] (wordfreq confident) Detect Language = {best_language}")
+        return best_language
 
     print("[WinToTalk] (wordfreq uncertain) trying fallback")
 
     # -------------------------
     # fallback langdetect
     # -------------------------
+
     try:
         lang = detect(text)
 
@@ -97,8 +141,24 @@ def detect_chat_language(text, default_language):
             print("[WinToTalk] (detect fallback) English")
             return "English"
 
+        if lang == "fr":
+            print("[WinToTalk] (detect fallback) French")
+            return "French"
+
+        if lang == "es":
+            print("[WinToTalk] (detect fallback) Spanish")
+            return "Spanish"
+
+        if lang == "ja":
+            print("[WinToTalk] (detect fallback) Japanese")
+            return "Japanese"
+
     except:
         pass
+
+    # -------------------------
+    # Default fallback
+    # -------------------------
 
     print("[WinToTalk] (default) Detect Language =", default_language)
     return default_language
@@ -141,22 +201,104 @@ VOICE_MAP = {
     "DE_NEUTRAL": DE_NEUTRAL,
     "DE_FEMALE": DE_FEMALE,
     "DE_MALE": DE_MALE,
+    "ES_NEUTRAL": ES_NEUTRAL,
+    "ES_FEMALE": ES_FEMALE,
+    "ES_MALE": ES_MALE,
+    "FR_NEUTRAL": FR_NEUTRAL,
+    "FR_FEMALE": FR_FEMALE,
+    "FR_MALE": FR_MALE,
+    "JP_NEUTRAL": JP_NEUTRAL,
+    "JP_FEMALE": JP_FEMALE,
+    "JP_MALE": JP_MALE,
 }
 
 def select_voice(voice, language, gender):
-    """Select one of the 6 preconfigured voices and log clearly."""
-    if language.lower().startswith("german"):
-        if gender.lower() == "male":
+    """Select one of the configured voices and log clearly."""
+
+    language = language.lower()
+    gender = gender.lower()
+
+    # ------------------------
+    # German
+    # ------------------------
+    if language.startswith("german"):
+
+        if gender == "male":
             chosen = "DE_MALE"
-        elif gender.lower() == "female":
+
+        elif gender == "female":
             chosen = "DE_FEMALE"
+
         else:
             chosen = "DE_NEUTRAL"
-    else:
-        if gender.lower() == "male":
+
+    # ------------------------
+    # Spanish
+    # ------------------------
+    elif language.startswith("spanish"):
+
+        if gender == "male":
+            chosen = "ES_MALE"
+
+        elif gender == "female":
+            chosen = "ES_FEMALE"
+
+        else:
+            chosen = "ES_NEUTRAL"
+
+    # ------------------------
+    # French
+    # ------------------------
+    elif language.startswith("french"):
+
+        if gender == "male":
+            chosen = "FR_MALE"
+
+        elif gender == "female":
+            chosen = "FR_FEMALE"
+
+        else:
+            chosen = "FR_NEUTRAL"
+
+    # ------------------------
+    # Japanese
+    # ------------------------
+    elif language.startswith("japanese"):
+
+        if gender == "male":
+            chosen = "JP_MALE"
+
+        elif gender == "female":
+            chosen = "JP_FEMALE"
+
+        else:
+            chosen = "JP_NEUTRAL"
+            
+    # ------------------------
+    # English
+    # ------------------------
+    elif language.startswith("english"):
+
+        if gender == "male":
             chosen = "EN_MALE"
-        elif gender.lower() == "female":
+
+        elif gender == "female":
             chosen = "EN_FEMALE"
+
+        else:
+            chosen = "EN_NEUTRAL"
+
+    # ------------------------
+    # Default: English
+    # ------------------------
+    else:
+
+        if gender == "male":
+            chosen = "EN_MALE"
+
+        elif gender == "female":
+            chosen = "EN_FEMALE"
+
         else:
             chosen = "EN_NEUTRAL"
 
@@ -279,6 +421,7 @@ async def process_message(msg):
             rate = data.get("Rate", DEFAULT_RATE)
             speaker = data.get("Speaker", "Unknown")
 
+            print("")
             print(datetime.now(), "Say")
             print("Language:", language)
             print("Gender:", gender)
@@ -292,7 +435,9 @@ async def process_message(msg):
 
         elif msg_type == "cancel":
             
+            print("")
             print(datetime.now(), "Cancel")
+            print("")
 
             cancel_current()
 
