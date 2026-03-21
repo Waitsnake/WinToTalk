@@ -13,7 +13,6 @@ import websockets
 import comtypes.client
 import pythoncom
 import re
-from langdetect import detect, DetectorFactory
 from wordfreq import zipf_frequency
 
 DEFAULT_RATE = 300
@@ -45,8 +44,6 @@ JP_MALE    = "Microsoft Haruka Desktop"
 
 SVS_ASYNC = 1
 SVS_PURGE = 2
-
-DetectorFactory.seed = 0
 
 def detect_chat_language(text, default_language):
 
@@ -125,41 +122,23 @@ def detect_chat_language(text, default_language):
     # Confidence Check
     # -------------------------
 
+    # -------------------------
+    # High confidence
+    # -------------------------
     if avg_score >= 2.5 and avg_diff >= 0.6:
         print(f"[WinToTalk] (wordfreq confident) Detect Language = {best_language}")
         return best_language
-
-    print("[WinToTalk] (wordfreq uncertain) trying fallback")
-
+        
+        
     # -------------------------
-    # fallback langdetect
+    # Medium confidence → TRUST wordfreq!
     # -------------------------
+    if avg_score >= 2.0 and avg_diff >= 0.3:
+        print(f"[WinToTalk] (wordfreq medium) Detect Language = {best_language}")
+        return best_language
 
-    try:
-        lang = detect(text)
+    print("[WinToTalk] (wordfreq uncertain) trying fallback (but has bad detection with short messages)")
 
-        if lang == "de":
-            print("[WinToTalk] (detect fallback) German")
-            return "German"
-
-        if lang == "en":
-            print("[WinToTalk] (detect fallback) English")
-            return "English"
-
-        if lang == "fr":
-            print("[WinToTalk] (detect fallback) French")
-            return "French"
-
-        if lang == "es":
-            print("[WinToTalk] (detect fallback) Spanish")
-            return "Spanish"
-
-        if lang == "ja":
-            print("[WinToTalk] (detect fallback) Japanese")
-            return "Japanese"
-
-    except:
-        pass
 
     # -------------------------
     # Default fallback
