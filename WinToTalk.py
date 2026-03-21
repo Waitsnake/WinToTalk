@@ -50,31 +50,46 @@ def detect_chat_language(text, default_language):
     text = text.strip()
 
     # -------------------------
-    # German Umlaut Shortcut
-    # -------------------------
-    
     # Japanese shortcut
+    # -------------------------
     if re.search(r"[ぁ-んァ-ン一-龯]", text):
         print("[WinToTalk] (shortcut) Detect Language = Japanese")
         return "Japanese"
 
+    # -------------------------
+    # German Umlaut Shortcut
+    # -------------------------
     if any(c in text for c in "äöüÄÖÜß"):
         print("[WinToTalk] (shortcut) Detect Language = German")
         return "German"
 
-    EMOTE_PATTERN = r"^[:;=8xX][-^]?[)DPOo3]+$"
-    if re.match(EMOTE_PATTERN, text.strip()):
+    # -------------------------
+    # Emote detection (extended minimal)
+    # -------------------------
+    EMOTE_PATTERN = r"^(?:[:;=8xX][-^]?[)DPOo3]+|o/|\\o/|<3|xD|XD|:D|:\)|:\(|owo|uwu|O_o|o_O)$"
+
+    if re.match(EMOTE_PATTERN, text):
         print("[WinToTalk] (emote detected)")
         return default_language
 
     # -------------------------
+    # Emotes für Detection entfernen
+    # -------------------------
+    CLEAN_EMOTE_PATTERN = r"(?:o/|\\o/|<3|xD|XD|:D|:\)|:\(|owo|uwu|O_o|o_O)"
+    clean_text = re.sub(CLEAN_EMOTE_PATTERN, " ", text)
+
+    # -------------------------
     # Wörter extrahieren
     # -------------------------
+    words = re.findall(r"[A-Za-zÄÖÜäöüß]+", clean_text.lower())
 
-    words = re.findall(r"[A-Za-zÄÖÜäöüß]+", text.lower())
+    # -------------------------
+    # Filter: 1-letter Wörter entfernen
+    # -------------------------
+    words = [w for w in words if len(w) > 1]
 
     if len(words) == 0:
-        print("[WinToTalk] (no words) using default language")
+        print("[WinToTalk] (no valid words) using default language")
         return default_language
 
     # -------------------------
@@ -136,9 +151,6 @@ def detect_chat_language(text, default_language):
     if avg_score >= 2.0 and avg_diff >= 0.3:
         print(f"[WinToTalk] (wordfreq medium) Detect Language = {best_language}")
         return best_language
-
-    print("[WinToTalk] (wordfreq uncertain) trying fallback (but has bad detection with short messages)")
-
 
     # -------------------------
     # Default fallback
