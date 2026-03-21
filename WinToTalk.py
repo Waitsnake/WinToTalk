@@ -32,16 +32,16 @@ DE_FEMALE  = "Microsoft Katja"
 DE_MALE    = "Microsoft Karsten"
 
 ES_NEUTRAL = "Microsoft Helena Desktop"
-ES_FEMALE  = "Microsoft Helena Desktop"
-ES_MALE    = "Microsoft Helena Desktop"
+ES_FEMALE  = "Microsoft Laura"
+ES_MALE    = "Microsoft Pablo"
 
 FR_NEUTRAL = "Microsoft Hortense Desktop"
-FR_FEMALE  = "Microsoft Hortense Desktop"
-FR_MALE    = "Microsoft Hortense Desktop"
+FR_FEMALE  = "Microsoft Julie"
+FR_MALE    = "Microsoft Paul"
 
 JP_NEUTRAL = "Microsoft Haruka Desktop"
-JP_FEMALE  = "Microsoft Haruka Desktop"
-JP_MALE    = "Microsoft Haruka Desktop"
+JP_FEMALE  = "Microsoft Ayumi"
+JP_MALE    = "Microsoft Ichiro"
 
 
 SVS_ASYNC = 1
