@@ -14,6 +14,7 @@ EMOJI_MAP = {
     # -------------------------
     # Happy / Laugh
     # -------------------------
+    "^^": {"English":"happy smiley","German":"lächelnder smiley","French":"smiley heureux","Spanish":"sonrisa feliz","Japanese":"ハッピー スマイリー"},
     ":)": {"English":"happy smiley","German":"lächelnder smiley","French":"smiley heureux","Spanish":"sonrisa feliz","Japanese":"ハッピー スマイリー"},
     ":-)": {"English":"happy smiley","German":"lächelnder smiley","French":"smiley heureux","Spanish":"sonrisa feliz","Japanese":"ハッピー スマイリー"},
     ":D": {"English":"laughing smiley","German":"lachender smiley","French":"smiley qui rit","Spanish":"sonrisa riendo","Japanese":"ラッフィング スマイリー"},
@@ -74,7 +75,7 @@ EMOJI_MAP = {
     "<3": {"English":"heart","German":"herz","French":"cœur","Spanish":"corazón","Japanese":"ハート"},
     "</3": {"English":"broken heart","German":"gebrochenes herz","French":"cœur brisé","Spanish":"corazón roto","Japanese":"ブロークン ハート"},
     "<33": {"English":"lots of love","German":"viel liebe","French":"beaucoup d'amour","Spanish":"mucho amor","Japanese":"ラブ いっぱい"},
-    "❤": {"English":"heart","German":"herz","French":"cœur","Spanish":"corazón","Japanese":"ハート"},
+    "♥": {"English":"heart","German":"herz","French":"cœur","Spanish":"corazón","Japanese":"ハート"},
     "❤️": {"English":"heart","German":"herz","French":"cœur","Spanish":"corazón","Japanese":"ハート"},
     "💔": {"English":"broken heart","German":"gebrochenes herz","French":"cœur brisé","Spanish":"corazón roto","Japanese":"ブロークン ハート"},
 
